@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cross EPS — Outils</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root { --bg:#0f0f0f; --surface:#1a1a1a; --surface2:#222; --border:#2e2e2e; --accent:#e8ff47; --accent2:#ff6b35; --text:#f0f0f0; --muted:#888; --success:#4ade80; --error:#f87171; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-weight:400; min-height:100vh; padding:0 0 80px; }
+
+  header { border-bottom:1px solid var(--border); padding:20px 40px; display:flex; align-items:center; gap:16px; }
+  .logo { font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; color:var(--accent); letter-spacing:2px; }
+  .logo span { color:var(--accent2); }
+  .btn-app { font-size:13px; color:var(--bg); background:var(--accent); padding:8px 16px; border-radius:6px; text-decoration:none; font-weight:600; white-space:nowrap; transition:opacity .2s; flex-shrink:0; }
+  .btn-app:hover { opacity:.85; }
+
+  .tabs { display:flex; border-bottom:1px solid var(--border); padding:0 40px; }
+  .tab { padding:18px 24px 16px; font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:1px; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; transition:color .2s,border-color .2s; user-select:none; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  .panel { display:none; padding:40px; }
+  .panel.active { display:block; }
+  .panel-title { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:1px; margin-bottom:8px; }
+  .panel-desc { color:var(--muted); font-size:14px; margin-bottom:36px; max-width:600px; line-height:1.6; }
+
+  .dropzone { border:2px dashed var(--border); border-radius:12px; padding:48px 32px; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; position:relative; background:var(--surface); }
+  .dropzone:hover,.dropzone.dragover { border-color:var(--accent); background:rgba(232,255,71,.04); }
+  .dropzone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .drop-icon { font-size:40px; margin-bottom:12px; }
+  .drop-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; margin-bottom:6px; color:var(--text); }
+  .drop-sub { font-size:13px; color:var(--muted); }
+
+  /* Pre-cards */
+  .pre-cards { margin-top:20px; display:flex; flex-direction:column; gap:16px; }
+  .pre-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; transition:border-color .2s; }
+  .pre-card:focus-within { border-color:rgba(232,255,71,.35); }
+  .pre-card-header { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--surface2); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .pre-card-header .fname { flex:1; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .pre-classe-wrap { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .pre-classe-label { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); white-space:nowrap; }
+  .pre-classe-input { background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--accent); font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1px; padding:5px 10px; width:120px; outline:none; transition:border-color .2s; }
+  .pre-classe-input:focus { border-color:var(--accent); }
+  .pre-classe-input::placeholder { color:#444; }
+  .pre-student-list { max-height:300px; overflow-y:auto; padding:4px 0; }
+  .pre-student-list::-webkit-scrollbar { width:6px; }
+  .pre-student-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  .pre-student-header { display:flex; align-items:center; padding:6px 14px; border-bottom:1px solid var(--border); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); position:sticky; top:0; background:var(--surface); z-index:1; }
+  .pre-student-header .col-name { flex:1; }
+  .pre-student-header .col-level { width:110px; text-align:center; }
+  .pre-student-row { display:flex; align-items:center; padding:5px 14px; gap:12px; border-bottom:1px solid rgba(255,255,255,.04); transition:background .1s; }
+  .pre-student-row:hover { background:rgba(255,255,255,.03); }
+  .pre-student-row:last-child { border-bottom:none; }
+  .pre-student-name { flex:1; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pre-level-input { width:110px; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-size:13px; padding:4px 8px; outline:none; text-align:center; transition:border-color .15s; flex-shrink:0; }
+  .pre-level-input:focus { border-color:rgba(232,255,71,.5); }
+  .pre-level-input::placeholder { color:#444; }
+
+  /* Post file list */
+  .file-list { margin-top:20px; display:flex; flex-direction:column; gap:8px; }
+  .file-item { display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 16px; font-size:13px; }
+  .file-item .fname { flex:1; font-weight:500; }
+  .file-item .ftag { background:rgba(232,255,71,.12); color:var(--accent); border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; letter-spacing:.05em; }
+  .fremove { color:var(--muted); cursor:pointer; font-size:16px; line-height:1; padding:2px 4px; border-radius:4px; transition:color .15s; flex-shrink:0; }
+  .fremove:hover { color:var(--error); }
+
+  /* Buttons */
+  .btn-row { display:flex; align-items:center; gap:12px; margin-top:28px; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; gap:10px; background:var(--accent); color:#0f0f0f; font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:1px; padding:14px 32px; border-radius:8px; border:none; cursor:pointer; transition:transform .15s,opacity .15s; }
+  .btn:hover { transform:translateY(-2px); opacity:.9; }
+  .btn:active { transform:translateY(0); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  .btn-ghost { background:transparent; border:2px solid var(--accent); color:var(--accent); font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:1px; padding:11px 24px; border-radius:8px; cursor:pointer; transition:background .15s; display:inline-flex; align-items:center; gap:8px; }
+  .btn-ghost:hover { background:rgba(232,255,71,.08); }
+  .btn-ghost:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* Log */
+  .log { margin-top:28px; background:#0a0a0a; border:1px solid var(--border); border-radius:8px; padding:20px 24px; font-family:'DM Mono','Courier New',monospace; font-size:12.5px; line-height:1.8; display:none; max-height:300px; overflow-y:auto; }
+  .log.visible { display:block; }
+  .log-ok { color:var(--success); } .log-warn { color:var(--accent); } .log-err { color:var(--error); } .log-info { color:var(--muted); }
+
+  .infobox { background:rgba(232,255,71,.05); border:1px solid rgba(232,255,71,.2); border-radius:8px; padding:16px 20px; font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:28px; }
+  .infobox strong { color:var(--accent); }
+
+  /* Dossard cards */
+  .dos-section { margin-top:36px; border-top:1px solid var(--border); padding-top:28px; }
+  .dos-section-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:1px; color:var(--muted); margin-bottom:16px; }
+  .dos-toolbar { display:flex; align-items:center; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+  .dos-count { font-size:13px; color:var(--muted); }
+  .dos-warn { background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--error); margin-bottom:16px; display:none; }
+  .dos-warn.visible { display:block; }
+  .dos-grid { display:flex; flex-direction:column; gap:12px; }
+  .dossard-card { background:#fff; border:3px solid #111; border-radius:4px; display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:0; max-width:460px; }
+  .dossard-info { flex:1; min-width:0; }
+  .dossard-nom { font-size:14px; font-weight:700; color:#111; letter-spacing:.02em; line-height:1.2; }
+  .dossard-prenom { font-size:14px; font-weight:400; color:#111; margin-bottom:5px; line-height:1.2; }
+  .dossard-line { font-size:12.5px; color:#333; margin-bottom:1px; }
+  .dossard-qr { flex-shrink:0; width:100px; height:100px; display:flex; align-items:center; justify-content:center; }
+  .dossard-qr img { width:100%; height:100%; display:block; }
+
+  /* Outils avancés */
+  .avances-wrapper { margin:48px 40px 0; border-top:1px solid var(--border); padding-top:16px; }
+  .avances-toggle { background:none; border:none; cursor:pointer; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; padding:0; transition:color .2s; }
+  .avances-toggle:hover { color:var(--text); }
+  .avances-icon { display:inline-block; transition:transform .2s; font-size:11px; }
+  .avances-icon.open { transform:rotate(90deg); }
+  .avances-content { display:none; margin-top:24px; padding:28px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+  .avances-content.open { display:block; }
+  .avances-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; margin-bottom:6px; }
+  .avances-desc { color:var(--muted); font-size:13px; margin-bottom:24px; line-height:1.6; }
+
+  /* Print */
+  @media print {
+    @page { margin:12mm 15mm; size:A4 portrait; }
+    header,.tabs,.panel-title,.panel-desc,.infobox,.dropzone,.pre-cards,.btn-row,.dos-section-title,.dos-toolbar,.log,.dos-warn,.avances-wrapper { display:none !important; }
+    body { background:white; padding:0; }
+    .panel { display:none !important; padding:0; }
+    #panel-main { display:block !important; }
+    .dos-section { border:none; padding:0; margin:0; }
+    .dos-grid { gap:0; align-items:center; }
+    .dossard-card { max-width:100%; width:auto; height:auto; border:2.5px solid #111; border-radius:0; padding:6mm 8mm; gap:5mm; break-inside:avoid; page-break-inside:avoid; margin-bottom:16mm; }
+    .dossard-info { flex:0 0 auto; min-width:37mm; }
+    .dossard-qr { width:95px; height:95px; flex:0 0 95px; }
+    .dossard-nom { font-size:13px; }
+    .dossard-prenom { font-size:13px; margin-bottom:4px; }
+    .dossard-line { font-size:12px; }
+  }
+
+  @media (max-width:600px) {
+    header { padding:14px 20px; }
+    .logo { font-size:34px; }
+    .tabs { padding:0 20px; overflow-x:auto; }
+    .panel { padding:24px 20px; }
+    .avances-wrapper { margin:32px 20px 0; }
+    .pre-card-header { flex-direction:column; align-items:flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Cross<span>EPS</span></div>
+  <div style="flex:1"></div>
+  <a href="market://details?id=fr.kunze.crossepsv2" onclick="if(this.href.startsWith('market')&&navigator.userAgent.indexOf('Android')==-1){window.open('https://play.google.com/store/apps/details?id=fr.kunze.crossepsv2','_blank');return false;}" class="btn-app">Ouvrir Cross'EPS V2 ↗</a>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('main')">① CSV → Dossards</div>
+  <div class="tab" onclick="switchTab('post')">② Post-cross → Excel</div>
+</div>
+
+<!-- ════ PANEL PRINCIPAL : CSV → Dossards ════ -->
+<div class="panel active" id="panel-main">
+  <div class="panel-title">Génération des dossards</div>
+  <div class="panel-desc">Importer les exports CSV de chaque classe. Renseigner le nom de la classe et le niveau de course de chaque élève, puis générer les dossards directement, contenant les informations des élèves ainsi que le QR code compatible avec l'application <a href="https://play.google.com/store/apps/details?id=fr.kunze.crossepsv2" target="_blank" style="color:var(--accent)">Cross'EPS V2</a>.</div>
+  <div class="infobox">
+    <strong>QR code</strong> — format : <code>Nom Prénom Classe Niveau Genre</code><br>
+    <strong>Fichier optionnel</strong> — Vous pouvez aussi télécharger <code>cross_complet.csv</code> pour l'éditer manuellement plus tard avant de réimprimer
+  </div>
+
+  <div class="dropzone" id="drop-main" ondragover="handleDragOver(event,'drop-main')" ondragleave="handleDragLeave('drop-main')" ondrop="handleDrop(event,'main')">
+    <input type="file" accept=".csv" multiple onchange="handleFileInput(event,'main')">
+    <div class="drop-icon">📂</div>
+    <div class="drop-title">Glisser les CSV ici</div>
+    <div class="drop-sub">ou cliquer pour sélectionner</div>
+  </div>
+
+  <div class="pre-cards" id="cards-main"></div>
+
+  <div class="btn-row">
+    <button class="btn" id="btn-main-dos" onclick="runMainDossards()" disabled>🖨 Générer les dossards</button>
+    <button class="btn-ghost" id="btn-main-csv" onclick="runMainCSV()" disabled>⬇ cross_complet.csv</button>
+  </div>
+
+  <!-- Section dossards -->
+  <div class="dos-section" id="dos-section-main" style="display:none">
+    <div class="dos-section-title">Dossards générés</div>
+    <div class="dos-warn" id="dos-warn-main"></div>
+    <div class="dos-toolbar" id="dos-toolbar-main">
+      <button class="btn" onclick="window.print()" style="margin-top:0">🖨 Télécharger / Imprimer</button>
+      <span class="dos-count" id="dos-count-main"></span>
+    </div>
+    <div class="dos-grid" id="dos-grid-main"></div>
+  </div>
+</div>
+
+<!-- ════ PANEL POST-CROSS ════ -->
+<div class="panel" id="panel-post">
+  <div class="panel-title">Résultats des courses</div>
+  <div class="panel-desc">Déposer les fichiers CSV exportés par l'application Cross'EPS V2 après la course. Le script génère un fichier <strong>resultats_cross.xlsx</strong> avec une feuille par classe et par course.</div>
+  <div class="infobox">
+    Tout fichier CSV exporté par Cross'EPS V2 est compatible.<br>
+    Colonnes de sortie par classe : <strong>Nom+Prénom · Genre · Niveau · Temps · Classement</strong>
+  </div>
+  <div class="dropzone" id="drop-post" ondragover="handleDragOver(event,'drop-post')" ondragleave="handleDragLeave('drop-post')" ondrop="handleDrop(event,'post')">
+    <input type="file" accept=".csv" multiple onchange="handleFileInput(event,'post')">
+    <div class="drop-icon">🏁</div>
+    <div class="drop-title">Glisser les CSV de résultats ici</div>
+    <div class="drop-sub">ou cliquer pour sélectionner</div>
+  </div>
+  <div class="file-list" id="files-post"></div>
+  <div class="btn-row">
+    <button class="btn" id="btn-post" onclick="runPost()" disabled>⬇ Générer resultats_cross.xlsx</button>
+  </div>
+  <div class="log" id="log-post"></div>
+</div>
+
+<!-- ════ OUTILS AVANCÉS ════ -->
+<div class="avances-wrapper">
+  <button class="avances-toggle" onclick="toggleAvances()">
+    <span class="avances-icon" id="avances-icon">▶</span>
+    Outils avancés — dossards depuis un cross_complet.csv édité manuellement
+  </button>
+  <div class="avances-content" id="avances-content">
+    <div class="avances-title">Dossards depuis CSV</div>
+    <div class="avances-desc">Utiliser cet outil si vous avez téléchargé <code>cross_complet.csv</code> depuis l'outil principal, modifié des données à la main, et que vous souhaitez regénérer les dossards depuis ce fichier corrigé.</div>
+    <div class="dropzone" id="drop-dosAdv" ondragover="handleDragOver(event,'drop-dosAdv')" ondragleave="handleDragLeave('drop-dosAdv')" ondrop="handleDrop(event,'dosAdv')">
+      <input type="file" accept=".csv" onchange="handleFileInput(event,'dosAdv')">
+      <div class="drop-icon">🖨</div>
+      <div class="drop-title">Glisser cross_complet.csv ici</div>
+      <div class="drop-sub">ou cliquer pour sélectionner</div>
+    </div>
+    <div class="dos-warn" id="dos-warn-adv"></div>
+    <div class="dos-toolbar" id="dos-toolbar-adv" style="display:none">
+      <button class="btn" onclick="window.print()" style="margin-top:0">🖨 Télécharger / Imprimer</button>
+      <span class="dos-count" id="dos-count-adv"></span>
+    </div>
+    <div class="dos-grid" id="dos-grid-adv"></div>
+  </div>
+</div>
+
+<script>
+const state = { pre: [], post: [] };
+
+// ── Tabs ──
+function switchTab(name) {
+  const names = ['main','post'];
+  const idx = names.indexOf(name);
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+// ── Outils avancés ──
+function toggleAvances() {
+  const content = document.getElementById('avances-content');
+  const icon = document.getElementById('avances-icon');
+  const open = content.classList.toggle('open');
+  icon.classList.toggle('open', open);
+}
+
+// ── Utilitaires ──
+function log(panel, msg, type='info') {
+  const el = document.getElementById('log-'+panel);
+  if (!el) return;
+  el.classList.add('visible');
+  const line = document.createElement('div');
+  line.className = 'log-'+type;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(panel) {
+  const el = document.getElementById('log-'+panel);
+  if (!el) return;
+  el.innerHTML = '';
+  el.classList.remove('visible');
+}
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function normalizeClasse(c) { return c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,''); }
+function splitNomPrenom(full) {
+  const words = full.trim().split(/\s+/);
+  let i = 0;
+  for(; i<words.length; i++) { if(/[a-z\xE0-\xF6\xF8-\xFF]/.test(words[i])) break; }
+  return { nom: words.slice(0,i).join(' ')||full, prenom: words.slice(i).join(' ') };
+}
+
+// ── Lecture CSV ──
+function readCSV(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      const first = text.split('\n')[0];
+      const sep = first.split(';').length > first.split(',').length ? ';' : ',';
+      resolve(Papa.parse(text, { delimiter:sep, skipEmptyLines:true }).data);
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+// ── Drag & drop ──
+function handleDragOver(e,id) { e.preventDefault(); document.getElementById(id).classList.add('dragover'); }
+function handleDragLeave(id) { document.getElementById(id).classList.remove('dragover'); }
+function handleDrop(e,panel) { e.preventDefault(); handleDragLeave('drop-'+panel); addFiles(panel, Array.from(e.dataTransfer.files)); }
+function handleFileInput(e,panel) { addFiles(panel, Array.from(e.target.files)); e.target.value=''; }
+
+async function addFiles(panel, files) {
+  if (panel==='post') {
+    files.forEach(f => { if(!state.post.find(x=>x.name===f.name)) state.post.push(f); });
+    renderPostList(); return;
+  }
+  if (panel==='dosAdv') { await generateDossards(files[0], 'adv'); return; }
+  // panel === 'main'
+  for (const file of files) {
+    if (state.pre.find(x=>x.file.name===file.name)) continue;
+    const data = await readCSV(file);
+    const students = [];
+    for (let i=1; i<data.length; i++) {
+      const row = data[i];
+      if (!row||row.every(c=>!c.trim())) continue;
+      students.push({ name:(row[0]||'').trim(), date:(row[2]||'').trim(), sexeRaw:(row[3]||'').trim(), level:'' });
+    }
+    const m = file.name.match(/^(\d+e\w*\d+)\.csv$/i);
+    state.pre.push({ file, classe:m?m[1]:'', students });
+  }
+  renderPreCards();
+}
+
+// ── Rendu pré-cards ──
+function renderPreCards() {
+  const el = document.getElementById('cards-main');
+  el.innerHTML='';
+  state.pre.forEach((item,fi) => {
+    const rowsHtml = item.students.map((s,si) => `
+      <div class="pre-student-row">
+        <span class="pre-student-name">${escHtml(s.name)}</span>
+        <input class="pre-level-input" type="text" placeholder="niveau (1-4)"
+          value="${escHtml(s.level)}" oninput="updateLevel(${fi},${si},this.value)">
+      </div>`).join('');
+    el.innerHTML += `
+      <div class="pre-card">
+        <div class="pre-card-header">
+          <span>📄</span>
+          <span class="fname">${escHtml(item.file.name)}</span>
+          <div class="pre-classe-wrap">
+            <span class="pre-classe-label">Classe :</span>
+            <input class="pre-classe-input" type="text" placeholder="ex : 3ème 6"
+              value="${escHtml(item.classe)}" oninput="updateClasse(${fi},this.value)">
+          </div>
+          <span class="fremove" onclick="removePreFile(${fi})">✕</span>
+        </div>
+        <div class="pre-student-list">
+          <div class="pre-student-header">
+            <span class="col-name">Élève (${item.students.length})</span>
+            <span class="col-level">Niveau de course</span>
+          </div>
+          ${rowsHtml}
+        </div>
+      </div>`;
+  });
+  const hasFiles = state.pre.length>0;
+  document.getElementById('btn-main-dos').disabled = !hasFiles;
+  document.getElementById('btn-main-csv').disabled = !hasFiles;
+}
+function removePreFile(idx) { state.pre.splice(idx,1); renderPreCards(); }
+function updateClasse(fi,v) { state.pre[fi].classe=v.trim(); }
+function updateLevel(fi,si,v) { state.pre[fi].students[si].level=v.trim(); }
+
+// ── Génération dossards depuis state.pre ──
+async function runMainDossards() {
+  const students = [];
+  for (const item of state.pre) {
+    const classe = item.classe||item.file.name.replace('.csv','');
+    for (const s of item.students) {
+      if (!s.name) continue;
+      const sexe = s.sexeRaw==='Féminin'?'F':s.sexeRaw==='Masculin'?'G':s.sexeRaw;
+      students.push({ nomPrenom:s.name, classe, date:s.date, niveau:s.level, genre:sexe });
+    }
+  }
+  document.getElementById('dos-section-main').style.display='block';
+  document.getElementById('dos-section-main').scrollIntoView({ behavior:'smooth', block:'start' });
+  await generateDossardCards(students, 'main');
+}
+
+// ── Téléchargement cross_complet.csv ──
+async function runMainCSV() {
+  const rows = [];
+  for (const item of state.pre) {
+    const classe = item.classe||item.file.name.replace('.csv','');
+    for (const s of item.students) {
+      if (!s.name) continue;
+      const sexe = s.sexeRaw==='Féminin'?'F':s.sexeRaw==='Masculin'?'G':s.sexeRaw;
+      rows.push([s.name, classe, s.date, s.level, sexe]);
+    }
+  }
+  if (!rows.length) return;
+  const csv = rows.map(r=>r.map(c=>/[,"\n]/.test(c)?`"${c.replace(/"/g,'""')}"`:`${c}`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='cross_complet.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Génération dossards depuis CSV (avancé) ──
+async function generateDossards(file, suffix) {
+  const data = await readCSV(file);
+  const rows = data.filter(r=>r&&r.some(c=>c.trim()));
+  if (!rows.length) {
+    const w = document.getElementById('dos-warn-'+suffix);
+    w.textContent='⚠ Aucun élève trouvé.'; w.classList.add('visible'); return;
+  }
+  const students = rows.map(row => ({
+    nomPrenom:(row[0]||'').trim().replace(/^\uFEFF/,''),
+    classe:(row[1]||'').trim(),
+    date:(row[2]||'').trim(),
+    niveau:(row[3]||'').trim(),
+    genre:(row[4]||'').trim()
+  })).filter(s=>s.nomPrenom);
+  await generateDossardCards(students, suffix);
+}
+
+// ── Rendu dossards (partagé) ──
+async function generateDossardCards(students, suffix) {
+  const grid    = document.getElementById('dos-grid-'+suffix);
+  const warn    = document.getElementById('dos-warn-'+suffix);
+  const toolbar = document.getElementById('dos-toolbar-'+suffix);
+  const count   = document.getElementById('dos-count-'+suffix);
+  grid.innerHTML=''; warn.classList.remove('visible'); if(toolbar) toolbar.style.display='none';
+
+  if (typeof QRCode==='undefined') {
+    warn.textContent='⚠ Bibliothèque QR non chargée — vérifiez votre connexion.'; warn.classList.add('visible'); return;
+  }
+
+  let withoutLevel=0;
+  const qrTargets=[];
+
+  for (const s of students) {
+    if (!s.nomPrenom) continue;
+    if (!s.niveau) withoutLevel++;
+    const qrContent = `${s.nomPrenom} ${normalizeClasse(s.classe)} ${s.niveau} ${s.genre}`.trim();
+    const { nom:_nom, prenom:_pre } = splitNomPrenom(s.nomPrenom);
+
+    const card = document.createElement('div'); card.className='dossard-card';
+    const info = document.createElement('div'); info.className='dossard-info';
+    info.innerHTML=`
+      <div class="dossard-nom">${escHtml(_nom)}</div>
+      ${_pre?`<div class="dossard-prenom">${escHtml(_pre)}</div>`:''}
+      <div class="dossard-line">${escHtml(s.classe)}</div>
+      <div class="dossard-line">${escHtml(s.date)}</div>
+      <div class="dossard-line">${escHtml(s.niveau)||'<em style="color:#999">—</em>'}</div>
+      <div class="dossard-line">${escHtml(s.genre)}</div>`;
+    const qrWrap = document.createElement('div'); qrWrap.className='dossard-qr';
+    qrWrap.innerHTML='<div style="color:#bbb;font-size:11px;text-align:center;padding-top:35px">⏳</div>';
+    card.appendChild(info); card.appendChild(qrWrap); grid.appendChild(card);
+    qrTargets.push({ el:qrWrap, content:qrContent });
+  }
+
+  if (count) count.textContent=`${qrTargets.length} dossards`;
+  if (toolbar) toolbar.style.display='flex';
+  if (withoutLevel>0) { warn.textContent=`⚠ ${withoutLevel} élève${withoutLevel>1?'s':''} sans niveau renseigné.`; warn.classList.add('visible'); }
+
+  for (const { el, content } of qrTargets) {
+    try {
+      const dataUrl = await QRCode.toDataURL(content, { width:180, margin:1, color:{dark:'#000000',light:'#ffffff'} });
+      el.innerHTML='';
+      const img = document.createElement('img'); img.src=dataUrl; el.appendChild(img);
+    } catch(e) {
+      el.innerHTML='<div style="color:red;font-size:11px;text-align:center;padding-top:35px">⚠ erreur QR</div>';
+      console.error('QR error:', content, e);
+    }
+  }
+}
+
+// ── Post-cross ──
+function renderPostList() {
+  const el = document.getElementById('files-post'); el.innerHTML='';
+  state.post.forEach((f,i) => {
+    const m = f.name.match(/^Course[\s_](\d+)[\s_]([GF])[\s_]/i);
+    const tag = m?`Course ${m[1]} ${m[2]}`:null;
+    el.innerHTML+=`<div class="file-item"><span>📄</span><span class="fname">${escHtml(f.name)}</span>${tag?`<span class="ftag">${tag}</span>`:''}<span class="fremove" onclick="removePostFile(${i})">✕</span></div>`;
+  });
+  document.getElementById('btn-post').disabled = state.post.length===0;
+}
+function removePostFile(idx) { state.post.splice(idx,1); renderPostList(); }
+
+function parseInfo(info) {
+  const words = info.trim().split(/\s+/);
+  if (words.length>=3) {
+    const genre=words[words.length-1], niveau=words[words.length-2], classe=words[words.length-3];
+    if (['G','F'].includes(genre)&&/^\d+$/.test(niveau)&&/^\d+eme\d+$/i.test(classe))
+      return { nom:words.slice(0,-3).join(' '), classe, niveau, sexe:genre };
+  }
+  if (words.length>=4) {
+    const genre=words[words.length-1], niveau=words[words.length-2], cn=words[words.length-3], cp=words[words.length-4];
+    if (['G','F'].includes(genre)&&/^\d+$/.test(niveau)&&/^\d+$/.test(cn)&&/^\d+[eè]me$/i.test(cp))
+      return { nom:words.slice(0,-4).join(' '), classe:normalizeClasse(cp)+cn, niveau, sexe:genre };
+  }
+  return { nom:info.trim(), classe:null, niveau:null, sexe:null };
+}
+
+async function runPost() {
+  clearLog('post');
+  document.getElementById('btn-post').disabled=true;
+  const wb=XLSX.utils.book_new(), parClasse={}, coursesRaw={}, nonAttrib=[];
+
+  for (const file of state.post) {
+    const m=file.name.match(/^Course[\s_](\d+)[\s_]([GF])[\s_]/i);
+    const nomCourse=m?`Course_${m[1]}_${m[2]}`:file.name.replace('.csv','');
+    const data=await readCSV(file); const resultats=[];
+    for (const row of data) {
+      if (!row||row.every(c=>!c.trim())) continue;
+      const classement=(row[0]||'').trim(), infoBrute=(row[1]||'').trim(), temps=(row[2]||'').trim();
+      const { nom, classe, niveau, sexe }=parseInfo(infoBrute);
+      resultats.push({ classement,nom,classe,niveau,sexe,temps,infoBrute,course:nomCourse });
+      if (classe) { if(!parClasse[classe]) parClasse[classe]=[]; parClasse[classe].push({ classement,nom,classe,niveau,sexe,temps }); }
+      else nonAttrib.push({ classement,nom,temps,course:nomCourse });
+    }
+    coursesRaw[nomCourse]=resultats;
+    log('post',`✓ ${file.name} → ${resultats.length} élèves (${nomCourse})`,'ok');
+  }
+
+  const hC={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF4472C4'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const hR={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF70AD47'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const hN={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FFE53935'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  function applyH(ws,h,s){ h.forEach((_,i)=>{ const c=ws[XLSX.utils.encode_cell({r:0,c:i})]; if(c) c.s=s; }); }
+  function setCW(ws,w){ ws['!cols']=w.map(v=>({wch:v})); }
+
+  const cls=Object.keys(parClasse).sort((a,b)=>{ const na=a.match(/(\d+)eme(\d+)/i),nb=b.match(/(\d+)eme(\d+)/i); return na&&nb?(+na[1]-+nb[1])||(+na[2]-+nb[2]):a.localeCompare(b); });
+  for (const c of cls) {
+    const d=[['Nom + Prénom','Genre','Niveau','Temps','Classement']];
+    parClasse[c].sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(e=>d.push([e.nom,e.sexe,e.niveau,e.temps,e.classement]));
+    const ws=XLSX.utils.aoa_to_sheet(d); setCW(ws,[32,8,8,12,12]); applyH(ws,d[0],hC);
+    XLSX.utils.book_append_sheet(wb,ws,c);
+  }
+  for (const nc of Object.keys(coursesRaw).sort()) {
+    const d=[['Classement','Élève (info complète)','Temps']];
+    coursesRaw[nc].forEach(r=>d.push([r.classement,r.infoBrute,r.temps]));
+    const ws=XLSX.utils.aoa_to_sheet(d); setCW(ws,[12,40,12]); applyH(ws,d[0],hR);
+    XLSX.utils.book_append_sheet(wb,ws,nc);
+  }
+  if (nonAttrib.length) {
+    const d=[['Nom + Prénom','Temps','Classement','Course']];
+    nonAttrib.forEach(r=>d.push([r.nom,r.temps,r.classement,r.course]));
+    const ws=XLSX.utils.aoa_to_sheet(d); setCW(ws,[30,12,12,16]); applyH(ws,d[0],hN);
+    XLSX.utils.book_append_sheet(wb,ws,'Non attribués');
+  }
+
+  const total=Object.values(parClasse).reduce((s,a)=>s+a.length,0)+nonAttrib.length;
+  try {
+    const wbout=XLSX.write(wb,{ bookType:'xlsx', type:'array', cellStyles:true });
+    const blob=new Blob([wbout],{ type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='resultats_cross.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },200);
+    log('post',`\n→ resultats_cross.xlsx téléchargé — ${cls.length} classes · ${Object.keys(coursesRaw).length} courses · ${nonAttrib.length} non attribués · ${total} élèves`,'ok');
+  } catch(e) {
+    log('post',`⚠ Erreur téléchargement : ${e.message}`,'err'); console.error(e);
+  }
+  document.getElementById('btn-post').disabled=false;
+}
+</script>
+</body>
+</html>
