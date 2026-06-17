@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cross EPS — Outils</title>
+<title>Cross EPS</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
@@ -496,44 +496,122 @@ function parseInfo(info) {
 
 async function runPost() {
   clearLog('post');
-  document.getElementById('btn-post').disabled=true;
-  const wb=XLSX.utils.book_new(), parClasse={}, coursesRaw={}, nonAttrib=[];
+  document.getElementById('btn-post').disabled = true;
+  const wb = XLSX.utils.book_new();
+  const parClasse = {}, coursesRaw = {}, nonAttrib = [];
+  const EMPTY_ROWS = 5;
 
   for (const file of state.post) {
-    const m=file.name.match(/^Course[\s_](\d+)[\s_]([GF])[\s_]/i);
-    const nomCourse=m?`Course_${m[1]}_${m[2]}`:file.name.replace('.csv','');
-    const data=await readCSV(file); const resultats=[];
+    const m = file.name.match(/^Course[\s_](\d+)[\s_]([GF])[\s_]/i);
+    const nomCourse = m ? `Course_${m[1]}_${m[2]}` : file.name.replace('.csv','');
+    const data = await readCSV(file); const resultats = [];
     for (const row of data) {
       if (!row||row.every(c=>!c.trim())) continue;
       const classement=(row[0]||'').trim(), infoBrute=(row[1]||'').trim(), temps=(row[2]||'').trim();
-      const { nom, classe, niveau, sexe }=parseInfo(infoBrute);
+      const { nom, classe, niveau, sexe } = parseInfo(infoBrute);
       resultats.push({ classement,nom,classe,niveau,sexe,temps,infoBrute,course:nomCourse });
       if (classe) { if(!parClasse[classe]) parClasse[classe]=[]; parClasse[classe].push({ classement,nom,classe,niveau,sexe,temps }); }
       else nonAttrib.push({ classement,nom,temps,course:nomCourse });
     }
-    coursesRaw[nomCourse]=resultats;
-    log('post',`✓ ${file.name} → ${resultats.length} élèves (${nomCourse})`,'ok');
+    coursesRaw[nomCourse] = resultats;
+    log('post', `✓ ${file.name} → ${resultats.length} élèves (${nomCourse})`, 'ok');
   }
 
-  const hC={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF4472C4'},patternType:'solid'}, alignment:{horizontal:'center'} };
-  const hR={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF70AD47'},patternType:'solid'}, alignment:{horizontal:'center'} };
-  const hN={ font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FFE53935'},patternType:'solid'}, alignment:{horizontal:'center'} };
-  function applyH(ws,h,s){ h.forEach((_,i)=>{ const c=ws[XLSX.utils.encode_cell({r:0,c:i})]; if(c) c.s=s; }); }
+  const hC = { font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF4472C4'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const hR = { font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF70AD47'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const hN = { font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FFE53935'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const hS = { font:{bold:true,color:{rgb:'FFFFFFFF'},name:'Arial'}, fill:{fgColor:{rgb:'FF7030A0'},patternType:'solid'}, alignment:{horizontal:'center'} };
+  const totalStyle  = { font:{bold:true,name:'Arial',sz:12}, fill:{fgColor:{rgb:'FFFFF2CC'},patternType:'solid'} };
+  const effectifStyle = { font:{bold:true,name:'Arial',sz:11}, fill:{fgColor:{rgb:'FFE2EFDA'},patternType:'solid'} };
+  const goldStyle   = { font:{bold:true,name:'Arial',sz:13}, fill:{fgColor:{rgb:'FFFFF2CC'},patternType:'solid'} };
+  const silverStyle = { font:{bold:true,name:'Arial',sz:12}, fill:{fgColor:{rgb:'FFF2F2F2'},patternType:'solid'} };
+  const bronzeStyle = { font:{bold:true,name:'Arial',sz:12}, fill:{fgColor:{rgb:'FFFCE4D6'},patternType:'solid'} };
+
+  function applyH(ws,h,s){ h.forEach((_,i)=>{ const cell=ws[XLSX.utils.encode_cell({r:0,c:i})]; if(cell) cell.s=s; }); }
   function setCW(ws,w){ ws['!cols']=w.map(v=>({wch:v})); }
-
-  const cls=Object.keys(parClasse).sort((a,b)=>{ const na=a.match(/(\d+)eme(\d+)/i),nb=b.match(/(\d+)eme(\d+)/i); return na&&nb?(+na[1]-+nb[1])||(+na[2]-+nb[2]):a.localeCompare(b); });
-  for (const c of cls) {
-    const d=[['Nom + Prénom','Genre','Niveau','Temps','Classement']];
-    parClasse[c].sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(e=>d.push([e.nom,e.sexe,e.niveau,e.temps,e.classement]));
-    const ws=XLSX.utils.aoa_to_sheet(d); setCW(ws,[32,8,8,12,12]); applyH(ws,d[0],hC);
-    XLSX.utils.book_append_sheet(wb,ws,c);
+  function applyRowStyle(ws,rowIdx,numCols,style){
+    for(let col=0;col<numCols;col++){
+      const ref=XLSX.utils.encode_cell({r:rowIdx,c:col});
+      if(!ws[ref]) ws[ref]={v:'',t:'s'};
+      ws[ref].s=style;
+    }
   }
+
+  const cls = Object.keys(parClasse).sort((a,b)=>{
+    const na=a.match(/(\d+)eme(\d+)/i), nb=b.match(/(\d+)eme(\d+)/i);
+    return na&&nb?(+na[1]-+nb[1])||(+na[2]-+nb[2]):a.localeCompare(b);
+  });
+
+  const classStats = {}; // classe -> { total, effectif, moyenne }
+  for (const classe of cls) {
+    const eleves = parClasse[classe].sort((a,b)=>a.nom.localeCompare(b.nom));
+    const wsData = [['Nom + Prénom','Genre','Niveau','Temps','Classement']];
+    let classTotal = 0, effectif = 0;
+    eleves.forEach(e => {
+      const v = parseInt(e.classement);
+      if (!isNaN(v)) { classTotal += v; effectif++; }
+      wsData.push([e.nom, e.sexe, e.niveau, e.temps, isNaN(v)?'':v]);
+    });
+    for (let i=0; i<EMPTY_ROWS; i++) wsData.push(['','','','','']);
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const nRows = wsData.length;          // dernière ligne de données/vides (1-indexed dans Excel)
+    const totalRowIdx = nRows;             // index 0-based pour la ligne "Points totaux"
+    const effectifRowIdx = nRows + 1;      // ligne suivante pour "Effectif"
+    const moyenneRowIdx = nRows + 2;       // ligne suivante pour "Points moyens"
+
+    // Points totaux
+    ws[XLSX.utils.encode_cell({r:totalRowIdx,c:3})] = { v:'Points totaux', t:'s', s:totalStyle };
+    ws[XLSX.utils.encode_cell({r:totalRowIdx,c:4})] = { f:`SUM(E2:E${nRows})`, t:'n', s:totalStyle };
+
+    // Effectif : nombre de lignes non vides dans E2:E{nRows}
+    ws[XLSX.utils.encode_cell({r:effectifRowIdx,c:3})] = { v:'Effectif', t:'s', s:effectifStyle };
+    ws[XLSX.utils.encode_cell({r:effectifRowIdx,c:4})] = { f:`COUNT(E2:E${nRows})`, t:'n', s:effectifStyle };
+
+    // Points moyens = Points totaux / Effectif
+    const totalCellRef = XLSX.utils.encode_cell({r:totalRowIdx,c:4});
+    const effCellRef = XLSX.utils.encode_cell({r:effectifRowIdx,c:4});
+    ws[XLSX.utils.encode_cell({r:moyenneRowIdx,c:3})] = { v:'Points moyens', t:'s', s:totalStyle };
+    ws[XLSX.utils.encode_cell({r:moyenneRowIdx,c:4})] = { f:`IF(${effCellRef}=0,0,${totalCellRef}/${effCellRef})`, t:'n', s:totalStyle };
+
+    ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:moyenneRowIdx,c:4}});
+    if (!ws['!rows']) ws['!rows']=[];
+    ws['!rows'][totalRowIdx] = { hpt:20 };
+    ws['!rows'][effectifRowIdx] = { hpt:20 };
+    ws['!rows'][moyenneRowIdx] = { hpt:22 };
+
+    setCW(ws,[32,8,8,12,14]);
+    applyH(ws,wsData[0],hC);
+    XLSX.utils.book_append_sheet(wb,ws,classe);
+
+    classStats[classe] = { total: classTotal, effectif, moyenne: effectif>0 ? classTotal/effectif : null };
+  }
+
   for (const nc of Object.keys(coursesRaw).sort()) {
     const d=[['Classement','Élève (info complète)','Temps']];
     coursesRaw[nc].forEach(r=>d.push([r.classement,r.infoBrute,r.temps]));
     const ws=XLSX.utils.aoa_to_sheet(d); setCW(ws,[12,40,12]); applyH(ws,d[0],hR);
     XLSX.utils.book_append_sheet(wb,ws,nc);
   }
+
+  if (cls.length > 0) {
+    const eligible = cls.filter(c => classStats[c].effectif > 0);
+    const ranked = [...eligible].sort((a,b)=>classStats[a].moyenne-classStats[b].moyenne);
+    const medals = ['🥇','🥈','🥉'];
+    const d = [['Rang','Classe','Points totaux','Effectif','Points moyens']];
+    ranked.forEach((classe,i) => {
+      const s = classStats[classe];
+      d.push([i+1, (i<3?medals[i]+' ':'')+classe, s.total, s.effectif, Math.round(s.moyenne*100)/100]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(d);
+    setCW(ws,[6,18,14,10,14]);
+    applyH(ws,d[0],hS);
+    if(ranked.length>=1) applyRowStyle(ws,1,5,goldStyle);
+    if(ranked.length>=2) applyRowStyle(ws,2,5,silverStyle);
+    if(ranked.length>=3) applyRowStyle(ws,3,5,bronzeStyle);
+    XLSX.utils.book_append_sheet(wb,ws,'Classement général');
+  }
+
   if (nonAttrib.length) {
     const d=[['Nom + Prénom','Temps','Classement','Course']];
     nonAttrib.forEach(r=>d.push([r.nom,r.temps,r.classement,r.course]));
@@ -543,8 +621,8 @@ async function runPost() {
 
   const total=Object.values(parClasse).reduce((s,a)=>s+a.length,0)+nonAttrib.length;
   try {
-    const wbout=XLSX.write(wb,{ bookType:'xlsx', type:'array', cellStyles:true });
-    const blob=new Blob([wbout],{ type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});
+    const blob=new Blob([wbout],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a'); a.href=url; a.download='resultats_cross.xlsx';
     document.body.appendChild(a); a.click();
@@ -553,7 +631,7 @@ async function runPost() {
   } catch(e) {
     log('post',`⚠ Erreur téléchargement : ${e.message}`,'err'); console.error(e);
   }
-  document.getElementById('btn-post').disabled=false;
+  document.getElementById('btn-post').disabled = false;
 }
 </script>
 </body>
