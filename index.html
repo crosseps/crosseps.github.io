@@ -515,6 +515,12 @@ function parseInfo(info) {
     if (['G','F'].includes(genre)&&/^\d+$/.test(niveau)&&/^\d+$/.test(cn)&&/^\d+[eè]me$/i.test(cp))
       return { nom:words.slice(0,-4).join(' '), classe:normalizeClasse(cp)+cn, niveau, sexe:genre };
   }
+  // Niveau de course absent : "NOM Prenom 3eme1  F"
+  if (words.length>=2) {
+    const genre=words[words.length-1], classe=words[words.length-2];
+    if (['G','F'].includes(genre)&&/^(\d+eme\d+|UPE2A)$/i.test(classe))
+      return { nom:words.slice(0,-2).join(' '), classe, niveau:'', sexe:genre };
+  }
   return { nom:info.trim(), classe:null, niveau:null, sexe:null };
 }
 
