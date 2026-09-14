@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cross EPS</title>
+<title>Cross EPS — Outils</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
@@ -44,9 +44,11 @@
   .pre-card-header .fname { flex:1; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .pre-classe-wrap { display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .pre-classe-label { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); white-space:nowrap; }
-  .pre-classe-input { background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--accent); font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1px; padding:5px 10px; width:120px; outline:none; transition:border-color .2s; }
+  .pre-classe-input { background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--accent); font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1px; padding:5px 10px; width:130px; outline:none; transition:border-color .2s; cursor:pointer; }
   .pre-classe-input:focus { border-color:var(--accent); }
-  .pre-classe-input::placeholder { color:#444; }
+  .pre-classe-input.empty { color:#666; border-color:rgba(255,107,53,.5); }
+  .pre-classe-input option { background:var(--surface2); color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; }
+  .pre-classe-input option[value=""] { color:#666; }
   .pre-student-list { max-height:300px; overflow-y:auto; padding:4px 0; }
   .pre-student-list::-webkit-scrollbar { width:6px; }
   .pre-student-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
@@ -172,6 +174,8 @@
 
   <div class="pre-cards" id="cards-main"></div>
 
+  <div class="dos-warn" id="classe-warn" style="display:none;margin-top:20px">⚠ Sélectionner une classe pour chaque fichier avant de générer les dossards.</div>
+
   <div class="btn-row">
     <button class="btn" id="btn-main-dos" onclick="runMainDossards()" disabled>🖨 Générer les dossards</button>
     <button class="btn-ghost" id="btn-main-csv" onclick="runMainCSV()" disabled>⬇ cross_complet.csv</button>
@@ -272,6 +276,22 @@ function clearLog(panel) {
   el.classList.remove('visible');
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const CLASSES = (() => {
+  const list = [];
+  for (const niv of [6,5,4,3]) for (let n=1; n<=8; n++) list.push(niv+'ème '+n);
+  list.push('UPE2A');
+  return list;
+})();
+
+// Retrouve une classe de la liste à partir d'un nom de fichier (ex : "3e6.csv", "6eme2.csv", "upe2a.csv")
+function guessClasse(filename) {
+  const base = normalizeClasse(filename.replace(/\.csv$/i,'')).toUpperCase();
+  if (base === 'UPE2A') return 'UPE2A';
+  const m = base.match(/^(\d)(?:E|EME)(\d)$/);
+  if (m && ['3','4','5','6'].includes(m[1]) && +m[2]>=1 && +m[2]<=8) return m[1]+'ème '+m[2];
+  return '';
+}
+
 function normalizeClasse(c) { return c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,''); }
 function splitNomPrenom(full) {
   const words = full.trim().split(/\s+/);
@@ -316,8 +336,7 @@ async function addFiles(panel, files) {
       if (!row||row.every(c=>!c.trim())) continue;
       students.push({ name:(row[0]||'').trim(), date:(row[2]||'').trim(), sexeRaw:(row[3]||'').trim(), level:'' });
     }
-    const m = file.name.match(/^(\d+e\w*\d+)\.csv$/i);
-    state.pre.push({ file, classe:m?m[1]:'', students });
+    state.pre.push({ file, classe: guessClasse(file.name), students });
   }
   renderPreCards();
 }
@@ -340,8 +359,10 @@ function renderPreCards() {
           <span class="fname">${escHtml(item.file.name)}</span>
           <div class="pre-classe-wrap">
             <span class="pre-classe-label">Classe :</span>
-            <input class="pre-classe-input" type="text" placeholder="ex : 3ème 6"
-              value="${escHtml(item.classe)}" oninput="updateClasse(${fi},this.value)">
+            <select class="pre-classe-input${item.classe?'':' empty'}" onchange="updateClasse(${fi},this.value)">
+              <option value=""${item.classe?'':' selected'}>— choisir —</option>
+              ${CLASSES.map(cl=>`<option value="${cl}"${item.classe===cl?' selected':''}>${cl}</option>`).join('')}
+            </select>
           </div>
           <span class="fremove" onclick="removePreFile(${fi})">✕</span>
         </div>
@@ -355,18 +376,21 @@ function renderPreCards() {
       </div>`;
   });
   const hasFiles = state.pre.length>0;
-  document.getElementById('btn-main-dos').disabled = !hasFiles;
-  document.getElementById('btn-main-csv').disabled = !hasFiles;
+  const allClasses = hasFiles && state.pre.every(it=>it.classe);
+  const warnEl = document.getElementById('classe-warn');
+  if (warnEl) warnEl.style.display = (hasFiles && !allClasses) ? 'block' : 'none';
+  document.getElementById('btn-main-dos').disabled = !allClasses;
+  document.getElementById('btn-main-csv').disabled = !allClasses;
 }
 function removePreFile(idx) { state.pre.splice(idx,1); renderPreCards(); }
-function updateClasse(fi,v) { state.pre[fi].classe=v.trim(); }
+function updateClasse(fi,v) { state.pre[fi].classe=v.trim(); renderPreCards(); }
 function updateLevel(fi,si,v) { state.pre[fi].students[si].level=v.trim(); }
 
 // ── Génération dossards depuis state.pre ──
 async function runMainDossards() {
   const students = [];
   for (const item of state.pre) {
-    const classe = item.classe||item.file.name.replace('.csv','');
+    const classe = item.classe;
     for (const s of item.students) {
       if (!s.name) continue;
       const sexe = s.sexeRaw==='Féminin'?'F':s.sexeRaw==='Masculin'?'G':s.sexeRaw;
@@ -382,7 +406,7 @@ async function runMainDossards() {
 async function runMainCSV() {
   const rows = [];
   for (const item of state.pre) {
-    const classe = item.classe||item.file.name.replace('.csv','');
+    const classe = item.classe;
     for (const s of item.students) {
       if (!s.name) continue;
       const sexe = s.sexeRaw==='Féminin'?'F':s.sexeRaw==='Masculin'?'G':s.sexeRaw;
@@ -483,7 +507,7 @@ function parseInfo(info) {
   const words = info.trim().split(/\s+/);
   if (words.length>=3) {
     const genre=words[words.length-1], niveau=words[words.length-2], classe=words[words.length-3];
-    if (['G','F'].includes(genre)&&/^\d+$/.test(niveau)&&/^\d+eme\d+$/i.test(classe))
+    if (['G','F'].includes(genre)&&/^\d+$/.test(niveau)&&/^(\d+eme\d+|UPE2A)$/i.test(classe))
       return { nom:words.slice(0,-3).join(' '), classe, niveau, sexe:genre };
   }
   if (words.length>=4) {
@@ -539,6 +563,8 @@ async function runPost() {
 
   const cls = Object.keys(parClasse).sort((a,b)=>{
     const na=a.match(/(\d+)eme(\d+)/i), nb=b.match(/(\d+)eme(\d+)/i);
+    if (na&&!nb) return -1;
+    if (!na&&nb) return 1;
     return na&&nb?(+na[1]-+nb[1])||(+na[2]-+nb[2]):a.localeCompare(b);
   });
 
